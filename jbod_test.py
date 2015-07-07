@@ -6,8 +6,20 @@ from tools import since
 import subprocess
 import os
 import time
+import shutil
 
+@since('3.0')
 class TestJBOD(Tester):
+
+    def __init__(self, *args, **kwargs):
+        self.ignore_log_patterns = [
+            # This one occurs when trying to send the migration to a
+            # node that hasn't started yet, and when it does, it gets
+            # replayed and everything is fine.
+            r"doesn't exist",
+        ]
+        Tester.__init__(self, *args, **kwargs)
+        self.allow_log_errors = True
 
     def verify_keys_test(self):
         """
@@ -38,14 +50,16 @@ class TestJBOD(Tester):
             cursor.execute(insq)
         node1.flush()
 
-        initial_sstables = []
+        initial_sstables = [None]*numkeys
         #figure out which dir each key is in
         for x in range(0, numkeys):
             sstable_path = node1.nodetool('getsstables test jtest ' + str(x), capture_output=True)
-            if "data1" in path:
-                sstables[x] = "data1"
+            if "data1" in sstable_path[0]:
+                initial_sstables[x] = "data1"
+            elif "data2" in sstable_path[0]:
+                initial_sstables[x] = "data2"
             else:
-                sstables[x] = "data2"
+                self.fail(sstable_path)
 
         #update added keys to ensure that keys remain on the same disk
         for x in range(0, numkeys):
@@ -54,11 +68,14 @@ class TestJBOD(Tester):
         node1.flush()
 
         #check that keys are on same disks as prior
-        final_sstables = []
+        final_sstables = [None]*numkeys
         for x in range(0, numkeys):
             sstable_paths = node1.nodetool('getsstables test jtest ' + str(x), capture_output=True)
             for path in sstable_paths:
-                self.assertTrue(sstables[x] in path)
+                debug(initial_sstables[x])
+                debug(path)
+                if path != "":
+                    self.assertTrue(initial_sstables[x] in path)
     
     def add_disk_test(self):
         """
@@ -66,7 +83,7 @@ class TestJBOD(Tester):
         Start up 3 node cluster, with 2 data disks, but only first specified in yaml.
         Note disk_failure_policy should be set to best-effort.
         Write decent amount of data then stop cluster.
-        Add additional disk to yaml and remove one existing disk and start cluster.
+        Add additional disk to yaml and remove one existing disk (ie remove directory) and start cluster.
         Ensure that data files properly distributed across disks.      
         """
         cluster = self.cluster
@@ -85,29 +102,24 @@ class TestJBOD(Tester):
         
         numkeys=100
         for x in range(0, numkeys):
-            insq = "INSERT INTO test.jtest(key,val) VALUES ({key}, {key})".format(key=str(x))
+            insq = SimpleStatement("INSERT INTO test.jtest(key,val) VALUES ({key}, {key})".format(key=str(x)), consistency_level=ConsistencyLevel.ALL)
             cursor.execute(insq)
         node1.flush()
 
+        cluster.drain()
         cluster.stop(gently=False)
-        cluster.set_data_dirs(['data2', 'data3', 'data4'])
+        cluster.set_data_dirs(['data1', 'data2', 'data3'])
+        shutil.rmtree(os.path.join(node1.get_path(), 'data1'))
         cluster.start()
-        
+        cursor = self.patient_cql_connection(node2)
+
+
         numkeys=100
         for x in range(0, numkeys):
-            insq = "SELECT key FROM test.jtest(key,val) WHERE key={key};".format(key=str(x))
+            insq = SimpleStatement("SELECT val FROM test.jtest WHERE key={key};".format(key=str(x)), consistency_level=ConsistencyLevel.ALL)
             try:
                 res = cursor.execute(insq)
-                self.assertEqual(res[0][0])
+                debug(res)
+                self.assertEqual(res[0][0], x)
             except Exception, e:
                 self.fail("Failed during key verification: " + str(e))
-
-    def vnode_compaction_test(self):
-        """
-        Test VnodeAwareCompactionStrategy.
-        Start up 3 node cluster with 2 data disks.
-        Write data and flush.
-        Run compaction.
-        Ensure data on disks is still present and that compaction was successful.
-        """
-        pass
