@@ -15,6 +15,7 @@ import threading
 import time
 import traceback
 import types
+from collections import OrderedDict
 from unittest import TestCase
 
 from cassandra import ConsistencyLevel
@@ -552,6 +553,37 @@ class Tester(TestCase):
                 # Ignore - see comment above
                 pass
 
+    def scan_logs_for_errors(self, nodes=None, allow_errors=False):
+        """
+        For given nodes, check logs for errors. If nodes are not given, defaults to
+        self.cluster.nodelist().
+
+        Returns an AssertionError object with details, or None if no errors are found.
+
+        Also returns None if self.allow_log_errors is True.
+        """
+        if allow_errors:
+            return None
+
+        if nodes is None:
+            nodes = self.cluster.nodelist()
+
+        # maps node names to errors seen
+        errordata = OrderedDict()
+
+        for node in nodes:
+            errors = list(self.__filter_errors(
+                ['\n'.join(msg) for msg in node.grep_log_for_errors()]))
+            if len(errors) is not 0:
+                errordata[node.name] = errors
+
+        if errordata:
+            message = "Unexpected error(s) in logs for node(s): {node_names}\n".format(node_names=", ".join(errordata.keys()))
+            for node_name, errors in errordata.items():
+                message += "{node_name}: {errors}".format(node_name=node_name, errors=errors)
+
+            return AssertionError(message)
+
     def tearDown(self):
         reset_environment_vars()
 
@@ -564,18 +596,13 @@ class Tester(TestCase):
             except:
                 pass
 
-        failed = sys.exc_info() != (None, None, None)
         try:
-            for node in self.cluster.nodelist():
-                if not self.allow_log_errors:
-                    errors = list(self.__filter_errors(
-                        ['\n'.join(msg) for msg in node.grep_log_for_errors()]))
-                    if len(errors) is not 0:
-                        failed = True
-                        raise AssertionError('Unexpected error in %s node log: %s' % (node.name, errors))
+            log_exception = self.scan_logs_for_errors(allow_errors=self.allow_errors)
+            if log_exception is not None:
+                raise log_exception
         finally:
             try:
-                if failed or KEEP_LOGS:
+                if log_exception or KEEP_LOGS:
                     # means the test failed. Save the logs for inspection.
                     self.copy_logs()
             except Exception as e:
@@ -583,7 +610,7 @@ class Tester(TestCase):
             finally:
                 if not self._preserve_cluster:
                     self._cleanup_cluster()
-                elif self._preserve_cluster and failed:
+                elif self._preserve_cluster and log_exception:
                     self._cleanup_cluster()
 
     def go(self, func):
