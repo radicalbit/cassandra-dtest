@@ -9,12 +9,12 @@ from collections import defaultdict
 from multiprocessing import Process, Queue
 from Queue import Empty, Full
 
-import psutil
-from cassandra import ConsistencyLevel, WriteTimeout
-from cassandra.query import SimpleStatement
 from six import print_
 
+import psutil
 import schema_metadata_test
+from cassandra import ConsistencyLevel, WriteTimeout
+from cassandra.query import SimpleStatement
 from dtest import Tester, debug
 from tools import generate_ssl_stores, known_failure, new_node
 from upgrade_base import (UPGRADE_TEST_RUN, head_2dot1, head_2dot2, head_3dot0,
@@ -428,9 +428,11 @@ class UpgradeTester(Tester):
 
         for node in nodes:
             debug('Shutting down node: ' + node.name)
+            self.scan_logs_for_errors()
             node.drain()
             node.watch_log_for("DRAINED")
             node.stop(wait_other_notice=False)
+            self.scan_logs_for_errors()
 
         for node in nodes:
             node.set_install_dir(version=tag)
@@ -447,6 +449,7 @@ class UpgradeTester(Tester):
             # Setup log4j / logback again (necessary moving from 2.0 -> 2.1):
             node.set_log_level("INFO")
             node.start(wait_other_notice=True, wait_for_binary_proto=True)
+            self.scan_logs_for_errors()
             node.nodetool('upgradesstables -a')
 
     def _log_current_ver(self, current_tag):
