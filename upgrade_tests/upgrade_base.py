@@ -8,7 +8,6 @@ from distutils.version import LooseVersion
 from unittest import skipIf
 
 from ccmlib.common import get_version_from_build, is_win
-
 from dtest import DEBUG, Tester, debug
 
 UPGRADE_TEST_RUN = os.environ.get('UPGRADE_TEST_RUN', '').lower() in {'true', 'yes'}
@@ -21,10 +20,11 @@ UpgradePath = namedtuple('UpgradePath', ('name', 'starting_version', 'upgrade_ve
 latest_2dot0 = '2.0.17'
 latest_2dot1 = '2.1.13'
 latest_2dot2 = '2.2.5'
-latest_3dot0 = '3.0.3'
+latest_3dot0 = '3.0.4-tentative'
 latest_3dot1 = '3.1.1'
 latest_3dot2 = '3.2.1'
 latest_3dot3 = '3.3'
+latest_3dot4 = '3.4-tentative'
 release_tag = '3.4-tentative'
 
 head_2dot0 = 'git:cassandra-2.0'
@@ -50,6 +50,11 @@ VALID_UPGRADE_PAIRS = (
     UpgradePath(name='3_2_HEAD_UpTo_3_4', starting_version=head_3dot2, upgrade_version=release_tag),
     UpgradePath(name='3_3_UpTo_3_4', starting_version=latest_3dot3, upgrade_version=release_tag),
     UpgradePath(name='3_3_HEAD_UpTo_3_4', starting_version=head_3dot3, upgrade_version=release_tag),
+
+    UpgradePath(name='2_1_UpTo_3_0_4', starting_version=latest_2dot1, upgrade_version=latest_3dot0),
+    UpgradePath(name='2_1_HEAD_UpTo_3_0_4', starting_version=head_2dot1, upgrade_version=latest_3dot0),
+    UpgradePath(name='2_2_UpTo_3_0_4', starting_version=latest_2dot2, upgrade_version=latest_3dot0),
+    UpgradePath(name='2_2_HEAD_UpTo_3_0_4', starting_version=head_2dot2, upgrade_version=latest_3dot0),
 )
 
 
