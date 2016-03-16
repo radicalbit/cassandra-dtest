@@ -123,7 +123,7 @@ class TestPushedNotifications(Tester):
         cluster.populate(3)
         node1, node2, node3 = cluster.nodelist()
 
-        # change node3 'rpc_address' from '127.0.0.x' to 'localhost (127.0.0.1)', increase port numbers
+        # change node's 'rpc_address' from '127.0.0.x' to 'localhost (127.0.0.1)', increase port numbers
         i = 0
         for node in cluster.nodelist():
             node.network_interfaces['thrift'] = ('127.0.0.1', node.network_interfaces['thrift'][1] + i)
