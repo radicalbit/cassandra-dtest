@@ -200,8 +200,8 @@ class TestCompaction(Tester):
         stringline = matches[0]
         throughput_pattern = re.compile('''.*          # it doesn't matter what the line starts with
                                            =           # wait for an equals sign
-                                           ([\s\d\.]*) # capture a decimal number, possibly surrounded by whitespace
-                                           MB/s.*      # followed by 'MB/s'
+                                           ([\s\d\.\-]*) # capture a decimal number, possibly surrounded by whitespace
+                                           (K|M|G)iB/s.*      # followed by 'MB/s'
                                         ''', re.X)
 
         avgthroughput = re.match(throughput_pattern, stringline).group(1).strip()
@@ -282,7 +282,7 @@ class TestCompaction(Tester):
 
         node.nodetool('compact ks large')
         verb = 'Writing' if self.cluster.version() > '2.2' else 'Compacting'
-        node.watch_log_for('{} large partition ks/large:user \(\d+ bytes\)'.format(verb), from_mark=mark, timeout=180)
+        node.watch_log_for('{} large partition ks/large:user \(\d+\.\d{{3}}(K|M|G)iB\)'.format(verb), from_mark=mark, timeout=180)
 
         ret = list(session.execute("SELECT properties from ks.large where userid = 'user'"))
 
